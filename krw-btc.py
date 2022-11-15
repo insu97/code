@@ -13,61 +13,59 @@ buy_money = 5000
 slack_token = ''
 client = slack_sdk.WebClient(token=slack_token)
 
-while (upbit.get_balance('KRW') > (buy_money * 1.0006)):
+total_money = 100000
+buy_money = 5000
+buy_count = 0
+location_coin = 0
+funds_price = 0
 
-    # KRW-BTC가 0원이면 시장가 매수
-    if upbit.get_balance("KRW-BTC") == 0:
-        upbit.buy_market_order("KRW-BTC", buy_money)
-        buy_count += 1
+error_count = 0
 
-        # 현재 수익률
-        rate_of_return = upbit.get_balance("KRW-BTC")/(buy_money * buy_count)
+while (total_money > buy_money * 1.0005):
 
-        message = "현재 구매 횟수 : %i , 현재 수익률 : %i, 현재 잔액 : %i" % (
-            buy_count, rate_of_return, upbit.get_balance('KRW'))
+    try:
 
-        client.chat_postMessage(channel='upbit', text=message)
+        if (buy_count == 0):
+            upbit.buy_market_order("KRW-BTC", buy_money)
+            buy_count += 1
+            recent_uuid = upbit.get_order("KRW-BTC", state="done")[0]['uuid']
+            order = upbit.get_order(recent_uuid)
+            recent_price = float(order['trades'][0]['price'])
+            total_money -= buy_money
+            message = "현재 구매 횟수 : %i , 현재 잔액 : %i" % (buy_count, total_money)
+            client.chat_postMessage(channel='upbit', text=message)
+            time.sleep(5)
 
-        time.sleep(5)
+        for i in range(len(upbit.get_balances())):
+            if upbit.get_balances()[i]['currency'] == 'BTC':
+                locaion_coin = i
 
-    for i in range(len(upbit.get_balances())):
-        if upbit.get_balances()[i]['currency'] == 'BTC':
-            # BTC의 평균가
-            avg_price = upbit.get_balances()[i]['avg_buy_price']
+        if float(pyupbit.get_current_price('KRW-BTC')) >= float(upbit.get_balances()[location_coin]['avg_buy_price']) * 1.06:
+            upbit.sell_market_order("KRW-BTC")
+            recent_uuid = upbit.get_order("KRW-BTC", state="done")[0]['uuid']
+            order = upbit.get_order(recent_uuid)
+            funds_price = float(order['trades'][0]['funds'])
+            total_money += funds_price
+            message = "매도 개수 : %i , 현재 잔액 : %i" % (buy_count, total_money)
+            client.chat_postMessage(channel='upbit', text=message)
+            buy_count = 0
+            time.sleep(5)
+
+        elif float(pyupbit.get_current_price('KRW-BTC')) <= recent_price * 0.98:
+            print(upbit.buy_market_order("KRW-BTC", buy_money))
+            buy_count += 1
+            recent_uuid = upbit.get_order("KRW-BTC", state="done")[0]['uuid']
+            order = upbit.get_order(recent_uuid)
+            recent_price = float(order['trades'][0]['price'])
+            total_money -= buy_money
+            print(buy_count, '회 매수')
+            message = "현재 구매 횟수 : %i , 현재 잔액 : %i" % (buy_count, total_money)
+            client.chat_postMessage(channel='upbit', text=message)
+            time.sleep(5)
+
+    except:
+        error_count += 1
+        if (error_count == 5):
+            print('5회 오류 발생--> 종료!')
             break
-
-    url = "https://api.upbit.com/v1/trades/ticks?market=KRW-BTC&count=1"
-    headers = {"accept": "application/json"}
-    response = requests.get(url, headers=headers)
-
-    # 6% 이상 이익
-    if float(pyupbit.get_current_price('KRW-BTC')) / float(avg_price) >= 1.06:
-        upbit.sell_market_order("KRW-BTC", buy_count)
-        buy_count = 0
-
-        # 현재 수익률
-        rate_of_return = upbit.get_balance("KRW-BTC")/(buy_money * buy_count)
-
-        message = "현재 구매 횟수 : %i , 현재 수익률 : %i, 현재 잔액 : %i" % (
-            buy_count, rate_of_return, upbit.get_balance('KRW'))
-
-        client.chat_postMessage(channel='upbit', text=message)
-
         time.sleep(5)
-
-    # 6% 이상 손해
-    elif float(pyupbit.get_current_price('KRW-BTC')) / float(response.text.split(',')[4].split(':')[1]) <= 0.94:
-        upbit.buy_market_order("KRW-BTC", buy_money)
-        buy_count += 1
-
-        # 현재 수익률
-        rate_of_return = upbit.get_balance("KRW-BTC")/(buy_money * buy_count)
-
-        message = "현재 구매 횟수 : %i , 현재 수익률 : %i, 현재 잔액 : %i" % (
-            buy_count, rate_of_return, upbit.get_balance('KRW'))
-
-        client.chat_postMessage(channel='upbit', text=message)
-
-        time.sleep(5)
-
-    time.sleep(5)
