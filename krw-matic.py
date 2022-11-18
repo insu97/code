@@ -12,7 +12,7 @@ client = slack_sdk.WebClient(token=slack_token)
 buy_count = 0
 buy_money = 5000
 
-coin_name = 'KRW-BTC'
+coin_name = 'KRW-MATIC'
 
 first_buy_price = 0
 
